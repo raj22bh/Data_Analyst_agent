@@ -1,8 +1,13 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+
+# Fix matplotlib backend for streamlit deployment
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 import seaborn as sns
+
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -12,23 +17,70 @@ import io
 import base64
 from typing import Dict, List, Any, Optional, Tuple
 import warnings
+import time
 warnings.filterwarnings('ignore')
 
-# File processing imports
+# File processing imports with error handling
+MISSING_PACKAGES = []
+
 try:
     from docx import Document
+    HAS_DOCX = True
+except ImportError:
+    HAS_DOCX = False
+    MISSING_PACKAGES.append("python-docx")
+
+try:
     import PyPDF2
+    HAS_PDF = True
+except ImportError:
+    HAS_PDF = False
+    MISSING_PACKAGES.append("PyPDF2")
+
+try:
     from PIL import Image
+    HAS_PIL = True
+except ImportError:
+    HAS_PIL = False
+    MISSING_PACKAGES.append("Pillow")
+
+try:
     import pytesseract
+    HAS_OCR = True
+except ImportError:
+    HAS_OCR = False
+    MISSING_PACKAGES.append("pytesseract")
+
+try:
     import together
+    HAS_TOGETHER = True
+except ImportError:
+    HAS_TOGETHER = False
+    MISSING_PACKAGES.append("together")
+
+try:
     from wordcloud import WordCloud
+    HAS_WORDCLOUD = True
+except ImportError:
+    HAS_WORDCLOUD = False
+    MISSING_PACKAGES.append("wordcloud")
+
+try:
     import textstat
+    HAS_TEXTSTAT = True
+except ImportError:
+    HAS_TEXTSTAT = False
+    MISSING_PACKAGES.append("textstat")
+
+try:
     from collections import Counter
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.cluster import KMeans
     from sklearn.decomposition import PCA
-except ImportError as e:
-    st.error(f"Missing required package: {e}. Please install all dependencies.")
+    HAS_SKLEARN = True
+except ImportError:
+    HAS_SKLEARN = False
+    MISSING_PACKAGES.append("scikit-learn")
 
 class DataAnalystAgent:
     def __init__(self, together_api_key: str):
@@ -110,8 +162,8 @@ class DataAnalystAgent:
                 "sentence_count": len(sentences),
                 "paragraph_count": len(paragraphs),
                 "character_count": len(text),
-                "readability_score": textstat.flesch_reading_ease(text),
-                "most_common_words": Counter(words).most_common(10),
+                "readability_score": textstat.flesch_reading_ease(text) if HAS_TEXTSTAT and text.strip() else 0,
+                "most_common_words": Counter(words).most_common(10) if words else [],
                 "preview": text[:500] + "..." if len(text) > 500 else text
             }
             
@@ -123,6 +175,9 @@ class DataAnalystAgent:
     
     def process_docx_file(self, file_content) -> Dict[str, Any]:
         """Process DOCX file"""
+        if not HAS_DOCX:
+            return {"status": "error", "message": "python-docx package not installed. Please install it to process Word documents."}
+        
         try:
             doc = Document(io.BytesIO(file_content))
             text = ""
@@ -141,7 +196,7 @@ class DataAnalystAgent:
                 "sentence_count": len(sentences),
                 "paragraph_count": len([p for p in paragraphs if p.strip()]),
                 "character_count": len(text),
-                "readability_score": textstat.flesch_reading_ease(text) if text.strip() else 0,
+                "readability_score": textstat.flesch_reading_ease(text) if text.strip() and HAS_TEXTSTAT else 0,
                 "most_common_words": Counter(words).most_common(10) if words else [],
                 "preview": text[:500] + "..." if len(text) > 500 else text
             }
@@ -154,6 +209,9 @@ class DataAnalystAgent:
     
     def process_pdf_file(self, file_content) -> Dict[str, Any]:
         """Process PDF file"""
+        if not HAS_PDF:
+            return {"status": "error", "message": "PyPDF2 package not installed. Please install it to process PDF documents."}
+        
         try:
             pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_content))
             text = ""
@@ -171,7 +229,7 @@ class DataAnalystAgent:
                 "word_count": len(words),
                 "sentence_count": len(sentences),
                 "character_count": len(text),
-                "readability_score": textstat.flesch_reading_ease(text) if text.strip() else 0,
+                "readability_score": textstat.flesch_reading_ease(text) if text.strip() and HAS_TEXTSTAT else 0,
                 "most_common_words": Counter(words).most_common(10) if words else [],
                 "preview": text[:500] + "..." if len(text) > 500 else text
             }
@@ -184,9 +242,17 @@ class DataAnalystAgent:
     
     def process_image_file(self, file_content) -> Dict[str, Any]:
         """Process image file using OCR"""
+        if not HAS_PIL:
+            return {"status": "error", "message": "Pillow package not installed. Please install it to process images."}
+        if not HAS_OCR:
+            return {"status": "error", "message": "pytesseract package not installed. Please install it for OCR functionality."}
+        
         try:
             image = Image.open(io.BytesIO(file_content))
-            text = pytesseract.image_to_string(image)
+            try:
+                text = pytesseract.image_to_string(image)
+            except Exception as ocr_error:
+                text = f"OCR extraction failed: {str(ocr_error)}. Please ensure Tesseract is installed on the system."
             
             self.current_data = text
             self.file_type = "image"
@@ -231,53 +297,112 @@ class DataAnalystAgent:
     
     def query_llama(self, question: str, context: str = "") -> str:
         """Query the Llama model with context about the data"""
+        import time
+        
         try:
-            # Prepare context
+            # Prepare context (optimize for rate limits)
             if self.data_summary:
-                context_text = f"Data Summary: {json.dumps(self.data_summary, indent=2, default=str)}\\n\\n"
+                # Summarize data more concisely for rate limits
+                summary_text = self._create_concise_summary()
+                context_text = f"Data Overview: {summary_text}\\n\\n"
             else:
                 context_text = ""
             
             if context:
-                context_text += f"Additional Context: {context}\\n\\n"
+                context_text += f"Context: {context[:500]}\\n\\n"  # Limit context length
             
-            # Add conversation history
+            # Add limited conversation history
             conversation_context = ""
             if self.conversation_history:
-                conversation_context = "Previous conversation:\\n"
-                for item in self.conversation_history[-3:]:  # Last 3 exchanges
-                    conversation_context += f"Q: {item['question']}\\nA: {item['answer']}\\n\\n"
+                conversation_context = "Recent context:\\n"
+                for item in self.conversation_history[-1:]:  # Only last exchange
+                    conversation_context += f"Previous Q: {item['question'][:100]}\\nPrevious A: {item['answer'][:200]}\\n\\n"
             
-            prompt = f"""You are a data analyst assistant. Analyze the provided data and answer the user's question comprehensively.
+            # Shorter, more focused prompt to reduce token usage
+            prompt = f"""Data Analyst AI: Analyze and answer concisely.
 
 {context_text}{conversation_context}
 
-User Question: {question}
+Question: {question}
 
-Please provide a detailed, accurate analysis based on the data. If you need to make calculations or observations, be specific and cite the data when possible."""
+Provide a focused, data-driven answer with key insights."""
 
-            response = self.together_client.chat.completions.create(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": "You are an expert data analyst. Provide clear, accurate, and detailed analysis based on the provided data."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=1000,
-                temperature=0.1
-            )
-            
-            answer = response.choices[0].message.content
-            
-            # Store in conversation history
-            self.conversation_history.append({
-                "question": question,
-                "answer": answer
-            })
-            
-            return answer
+            # Add retry logic for rate limits
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    response = self.together_client.chat.completions.create(
+                        model=self.model_name,
+                        messages=[
+                            {"role": "system", "content": "You are an expert data analyst. Provide concise, accurate analysis."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        max_tokens=600,  # Reduced to stay within limits
+                        temperature=0.1
+                    )
+                    
+                    answer = response.choices[0].message.content
+                    
+                    # Store in conversation history
+                    self.conversation_history.append({
+                        "question": question,
+                        "answer": answer
+                    })
+                    
+                    return answer
+                    
+                except Exception as e:
+                    if "rate_limit" in str(e).lower() or "429" in str(e):
+                        if attempt < max_retries - 1:
+                            wait_time = (attempt + 1) * 60  # Wait 60, 120, 180 seconds
+                            return f"⏳ Rate limit reached. Please wait {wait_time} seconds and try again. The model allows 0.6 queries per minute."
+                        else:
+                            return "⚠️ Rate limit exceeded. Please wait a few minutes before asking another question. The Llama-4-Maverick model has a limit of 0.6 queries per minute."
+                    else:
+                        raise e
             
         except Exception as e:
-            return f"Error querying model: {str(e)}"
+            error_msg = str(e)
+            if "rate_limit" in error_msg.lower() or "429" in error_msg:
+                return """⚠️ **Rate Limit Reached**
+                
+The Llama-4-Maverick model has strict rate limits:
+- **0.6 queries per minute** (1 query every 100 seconds)
+- **180M tokens per minute**
+
+**Solutions:**
+1. ⏰ Wait 2-3 minutes between questions
+2. 📞 Contact Together AI sales for higher limits: https://www.together.ai/forms/contact-sales
+3. 💡 Use shorter, more focused questions to reduce token usage
+
+Please try again in 2-3 minutes."""
+            else:
+                return f"Error querying model: {error_msg}"
+    
+    def _create_concise_summary(self) -> str:
+        """Create a concise summary for rate limit optimization"""
+        if not self.data_summary:
+            return "No data loaded"
+        
+        summary = []
+        
+        if self.file_type in ['csv', 'excel']:
+            shape = self.data_summary.get('shape', [0, 0])
+            summary.append(f"{shape[0]} rows, {shape[1]} cols")
+            
+            numeric_cols = self.data_summary.get('numeric_columns', [])
+            if numeric_cols:
+                summary.append(f"Numeric: {', '.join(numeric_cols[:3])}")
+            
+            cat_cols = self.data_summary.get('categorical_columns', [])
+            if cat_cols:
+                summary.append(f"Categories: {', '.join(cat_cols[:3])}")
+                
+        elif self.file_type in ['text', 'docx', 'pdf']:
+            word_count = self.data_summary.get('word_count', 0)
+            summary.append(f"{word_count} words")
+            
+        return "; ".join(summary)
     
     def create_visualizations(self) -> List[Dict[str, Any]]:
         """Create appropriate visualizations based on data type"""
@@ -334,41 +459,47 @@ Please provide a detailed, accurate analysis based on the data. If you need to m
             
             elif self.file_type in ['text', 'docx', 'pdf'] and self.current_data:
                 # Word cloud
-                if len(self.current_data.strip()) > 0:
-                    wordcloud = WordCloud(
-                        width=800, 
-                        height=400, 
-                        background_color='white'
-                    ).generate(self.current_data)
-                    
-                    fig_wc, ax = plt.subplots(figsize=(10, 5))
-                    ax.imshow(wordcloud, interpolation='bilinear')
-                    ax.axis('off')
-                    ax.set_title('Word Cloud')
-                    
-                    visualizations.append({
-                        "title": "Word Cloud",
-                        "type": "matplotlib",
-                        "figure": fig_wc
-                    })
+                if len(self.current_data.strip()) > 0 and HAS_WORDCLOUD:
+                    try:
+                        wordcloud = WordCloud(
+                            width=800, 
+                            height=400, 
+                            background_color='white'
+                        ).generate(self.current_data)
+                        
+                        fig_wc, ax = plt.subplots(figsize=(10, 5))
+                        ax.imshow(wordcloud, interpolation='bilinear')
+                        ax.axis('off')
+                        ax.set_title('Word Cloud')
+                        
+                        visualizations.append({
+                            "title": "Word Cloud",
+                            "type": "matplotlib",
+                            "figure": fig_wc
+                        })
+                        
+                        plt.close(fig_wc)  # Close figure to free memory
+                    except Exception as e:
+                        st.warning(f"Could not create word cloud: {str(e)}")
                     
                     # Word frequency chart
                     words = self.current_data.split()
-                    word_freq = Counter(words).most_common(10)
-                    
-                    fig_freq = px.bar(
-                        x=[item[1] for item in word_freq],
-                        y=[item[0] for item in word_freq],
-                        orientation='h',
-                        title="Top 10 Most Frequent Words"
-                    )
-                    fig_freq.update_layout(xaxis_title="Frequency", yaxis_title="Words")
-                    
-                    visualizations.append({
-                        "title": "Word Frequency",
-                        "type": "plotly",
-                        "figure": fig_freq
-                    })
+                    if words:
+                        word_freq = Counter(words).most_common(10)
+                        
+                        fig_freq = px.bar(
+                            x=[item[1] for item in word_freq],
+                            y=[item[0] for item in word_freq],
+                            orientation='h',
+                            title="Top 10 Most Frequent Words"
+                        )
+                        fig_freq.update_layout(xaxis_title="Frequency", yaxis_title="Words")
+                        
+                        visualizations.append({
+                            "title": "Word Frequency",
+                            "type": "plotly",
+                            "figure": fig_freq
+                        })
             
         except Exception as e:
             st.error(f"Error creating visualizations: {str(e)}")
@@ -381,6 +512,21 @@ def main():
         page_icon="📊",
         layout="wide"
     )
+    
+    # Check for missing packages and show warnings
+    if MISSING_PACKAGES:
+        st.warning(f"""
+        ⚠️ **Missing Packages Detected:** {', '.join(MISSING_PACKAGES)}
+        
+        Some features may not work properly. To install missing packages:
+        ```bash
+        pip install {' '.join(MISSING_PACKAGES)}
+        ```
+        """)
+    
+    if not HAS_TOGETHER:
+        st.error("❌ **Together AI package is required!** Please install it: `pip install together`")
+        st.stop()
     
     st.title("🤖 Data Analyst Agent")
     st.markdown("### Upload any document and get AI-powered analysis with visualizations")
@@ -500,22 +646,50 @@ def main():
                     st.write(f"**Question:** {item['question']}")
                     st.write(f"**Answer:** {item['answer']}")
         
+        # Rate limit warning
+        st.warning("""
+        ⚠️ **Rate Limit Notice:** The Llama-4-Maverick model allows only **0.6 queries per minute** (1 query every ~100 seconds).
+        Please wait 2-3 minutes between questions to avoid rate limits.
+        """)
+        
         # Question input
         question = st.text_input(
             "Ask a question about your data:",
             placeholder="e.g., What are the main trends in this data? Can you summarize the key findings?"
         )
         
-        col1, col2 = st.columns([1, 4])
+        col1, col2, col3 = st.columns([1, 2, 2])
         with col1:
             ask_button = st.button("Ask Question", type="primary")
+        with col2:
+            if st.session_state.agent.conversation_history:
+                last_query_time = st.session_state.get('last_query_time', 0)
+                current_time = time.time()
+                time_since_last = current_time - last_query_time
+                if time_since_last < 120:  # 2 minutes
+                    remaining = 120 - time_since_last
+                    st.info(f"⏱️ Wait {remaining:.0f}s before next query")
+        with col3:
+            if st.button("Clear History"):
+                st.session_state.agent.conversation_history = []
+                st.rerun()
         
         if ask_button and question:
-            with st.spinner("Analyzing and generating response..."):
-                answer = st.session_state.agent.query_llama(question)
-                
-                st.subheader("Answer:")
-                st.write(answer)
+            # Check rate limit timing
+            current_time = time.time()
+            last_query_time = st.session_state.get('last_query_time', 0)
+            time_since_last = current_time - last_query_time
+            
+            if time_since_last < 120 and st.session_state.agent.conversation_history:  # 2 minutes
+                remaining = 120 - time_since_last
+                st.error(f"⏱️ Please wait {remaining:.0f} more seconds before asking another question to avoid rate limits.")
+            else:
+                with st.spinner("Analyzing and generating response..."):
+                    answer = st.session_state.agent.query_llama(question)
+                    st.session_state.last_query_time = current_time
+                    
+                    st.subheader("Answer:")
+                    st.write(answer)
         
         # Sample questions
         st.subheader("💡 Sample Questions")
@@ -529,10 +703,20 @@ def main():
         
         for sq in sample_questions:
             if st.button(sq, key=f"sample_{sq}"):
-                with st.spinner("Analyzing..."):
-                    answer = st.session_state.agent.query_llama(sq)
-                    st.subheader("Answer:")
-                    st.write(answer)
+                # Check rate limit for sample questions too
+                current_time = time.time()
+                last_query_time = st.session_state.get('last_query_time', 0)
+                time_since_last = current_time - last_query_time
+                
+                if time_since_last < 120 and st.session_state.agent.conversation_history:
+                    remaining = 120 - time_since_last
+                    st.error(f"⏱️ Please wait {remaining:.0f} more seconds before asking another question.")
+                else:
+                    with st.spinner("Analyzing..."):
+                        answer = st.session_state.agent.query_llama(sq)
+                        st.session_state.last_query_time = current_time
+                        st.subheader("Answer:")
+                        st.write(answer)
     
     else:
         st.info("👆 Please upload a file using the sidebar to begin analysis.")
