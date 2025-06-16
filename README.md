@@ -240,12 +240,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] Docker containerization
 - [ ] Cloud deployment options
 
-## ⭐ Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=yourusername/data-analyst-agent&type=Date)](https://star-history.com/#yourusername/data-analyst-agent&Date)
 
 ---
 
-**Made with ❤️ by [Your Name](https://github.com/yourusername)**
+**Made with ❤️ by [Your Name](https://github.com/raj22bh**
 
 If you find this project helpful, please consider giving it a ⭐!
