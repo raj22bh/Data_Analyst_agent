@@ -52,7 +52,9 @@ An AI-powered data analysis tool that automatically processes various file forma
 
 ## 📦 Dependencies
 
-### Core Requirements
+### Core Requirements![S![Screenshot 2025-06-16 140143](https://github.com/user-attachments/assets/907693ec-0508-4e70-b76d-21ff920045f5)
+creenshot 2025-06-16 135841](https://github.com/user-attachments/assets/f5bf8dd7-2b61-4953-a3e3-9663bf435319)
+
 ```
 streamlit>=1.28.0
 pandas>=1.5.0
@@ -141,7 +143,6 @@ data-analyst-agent/
 ├── requirements.txt       # Python dependencies
 ├── requirements-full.txt  # All optional dependencies
 ├── README.md             # Project documentation
-├── LICENSE               # MIT License
 ├── .gitignore           # Git ignore file
 ├── assets/              # Images and documentation assets
 │   ├── demo.gif
