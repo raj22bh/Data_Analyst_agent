@@ -6,6 +6,9 @@ An AI-powered data analysis tool that automatically processes various file forma
 ![Streamlit](https://img.shields.io/badge/streamlit-v1.28+-red.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
+ ![Screenshot 2025-06-16 135841](https://github.com/user-attachments/assets/f5bf8dd7-2b61-4953-a3e3-9663bf435319)
+ ![Screenshot 2025-06-16 140143](https://github.com/user-attachments/assets/907693ec-0508-4e70-b76d-21ff920045f5)
+ 
 ## 🌟 Features
 
 - **Multi-Format File Support**: CSV, Excel, PDF, Word documents, text files, and images
@@ -23,8 +26,8 @@ An AI-powered data analysis tool that automatically processes various file forma
 | **Documents** | `.txt`, `.docx`, `.pdf` | Text analysis, readability scores, word frequency |
 | **Images** | `.png`, `.jpg`, `.jpeg`, `.tiff`, `.bmp` | OCR text extraction and analysis |
 
- ![Screenshot 2025-06-16 140143](https://github.com/user-attachments/assets/907693ec-0508-4e70-b76d-21ff920045f5)
- ![Screenshot 2025-06-16 135841](https://github.com/user-attachments/assets/f5bf8dd7-2b61-4953-a3e3-9663bf435319)
+
+
 
 ## 🚀 Quick Start
 
