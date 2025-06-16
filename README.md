@@ -28,7 +28,6 @@ An AI-powered data analysis tool that automatically processes various file forma
 
 
 
-
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -147,18 +146,11 @@ data-analyst-agent/
 ├── requirements.txt       # Python dependencies
 ├── requirements-full.txt  # All optional dependencies
 ├── README.md             # Project documentation
-├── .gitignore           # Git ignore file
-├── assets/              # Images and documentation assets
-│   ├── demo.gif
-│   └── screenshots/
 ├── examples/            # Sample data files for testing
-│   ├── sample_data.csv
-│   ├── sample_document.pdf
-│   └── sample_image.png
-└── docs/               # Additional documentation
-    ├── installation.md
-    ├── troubleshooting.md
-    └── api_reference.md
+   ├── sample_data.csv
+   ├── sample_document.pdf
+   └── sample_image.png
+
 ```
 
 ## 🛠️ Development
@@ -220,9 +212,6 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 - 🔧 Submit bug fixes
 - ✨ Add new file format support
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
@@ -230,9 +219,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Streamlit** for the amazing web framework
 - **Open Source Community** for the excellent libraries used in this project
 
-## 📊 Demo
-
-![Data Analyst Agent Demo](assets/demo.gif)
 
 ## 📈 Roadmap
 
@@ -246,9 +232,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] Cloud deployment options
 
 
-
 ---
 
-**Made with ❤️ by [Your Name](https://github.com/raj22bh**
+**Made with ❤️ by RJ https://github.com/raj22bh**
 
 If you find this project helpful, please consider giving it a ⭐!
